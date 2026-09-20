@@ -57,8 +57,16 @@ export default function Step5({ messages, onRestart }) {
         .map((message, index) => ({ message, index }))
         .filter(({ message }) => message.role === 'user')
 
+      const emotionTargets = [
+        ...userMessages.map(({ message, index }) => ({ message, index, contextType: 'speaking' })),
+        ...messages
+          .map((message, index) => ({ message, index }))
+          .filter(({ message }) => message.role === 'assistant' && message.images?.length > 0)
+          .map(({ message, index }) => ({ message, index, contextType: 'listening' })),
+      ].sort((a, b) => a.index - b.index)
+
       setSingleProgress({ done: 0, total: userMessages.length })
-      setEmotionProgress({ done: 0, total: userMessages.length })
+      setEmotionProgress({ done: 0, total: emotionTargets.length })
       setOverallProgress({ done: 0, total: 1 })
 
       const singleResponsePromise = Promise.all(
@@ -80,7 +88,7 @@ export default function Step5({ messages, onRestart }) {
       )
 
       const emotionPromise = (async () => {
-        for (const { message, index } of userMessages) {
+        for (const { message, index, contextType } of emotionTargets) {
           if (cancelled) {
             return
           }
@@ -97,6 +105,7 @@ export default function Step5({ messages, onRestart }) {
               previous_messages: previousMessages,
               emotion,
               message: { role: message.role, text: message.text },
+              context_type: contextType,
             }),
           })
             .then((response) => response.json())
@@ -161,7 +170,7 @@ export default function Step5({ messages, onRestart }) {
           const suggestionList = suggestions[index]
           const emotionNote = emotionNotes[index]
           const hasIssue = message.role === 'user' && Boolean(suggestionList?.length)
-          const hasEmotionIssue = message.role === 'user' && Boolean(emotionNote)
+          const hasEmotionIssue = Boolean(emotionNote)
 
           return (
             <div key={index} className={`message-row ${message.role}`}>

@@ -13,6 +13,7 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
   const [messages, setMessages] = useState([])
   const [status, setStatus] = useState('connecting')
   const [showConversation, setShowConversation] = useState(false)
+  const [isWaitingForAssistant, setIsWaitingForAssistant] = useState(false)
 
   const socketRef = useRef(null)
   const endedRef = useRef(false)
@@ -84,9 +85,10 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
     videoStreamRef.current = null
   }
 
-  const playAssistantVoice = async (text) => {
+  const playAssistantVoice = async (text, messageId) => {
     isSpeakingRef.current = true
-    stopCaptureLoop()
+    photosRef.current = []
+    startCaptureLoop()
     try {
       const response = await fetch('/generate_voice', {
         method: 'POST',
@@ -112,8 +114,19 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
       ])
     } finally {
       isSpeakingRef.current = false
+      stopCaptureLoop()
+
+      const listeningImages = photosRef.current
+      photosRef.current = []
+      if (listeningImages.length > 0) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, images: listeningImages } : m))
+        )
+      }
+
       socketRef.current?.send(JSON.stringify({ type: 'resume_listening' }))
       startCaptureLoop()
+      setIsWaitingForAssistant(false)
     }
   }
 
@@ -138,6 +151,7 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
         setInterimText(data.text)
       } else if (data.type === 'finalized_user') {
         setInterimText('')
+        setIsWaitingForAssistant(true)
         stopCaptureLoop()
         const images = photosRef.current
         photosRef.current = []
@@ -146,8 +160,9 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
           { role: 'user', text: data.text, sentiment: data.sentiment, images },
         ])
       } else if (data.type === 'assistant') {
-        setMessages((prev) => [...prev, { role: 'assistant', text: data.text }])
-        playAssistantVoice(data.text)
+        const messageId = crypto.randomUUID()
+        setMessages((prev) => [...prev, { id: messageId, role: 'assistant', text: data.text }])
+        playAssistantVoice(data.text, messageId)
       } else if (data.type === 'ended') {
         endedRef.current = true
         setStatus('ended')
@@ -284,7 +299,8 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
       <label>
         Temporary input
         <div className="temp-input">
-          {interimText || (status === 'ended' ? '' : 'Listening...')}
+          {interimText ||
+            (status === 'ended' ? '' : isWaitingForAssistant ? 'Responding...' : 'Listening...')}
         </div>
       </label>
 

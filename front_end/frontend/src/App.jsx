@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import sittingImage from './assets/sitting.jpg'
+import sitting2Image from './assets/sitting2.jpg'
 import Step1 from './steps/Step1.jsx'
 import Step2 from './steps/Step2.jsx'
 import Step3 from './steps/Step3.jsx'
@@ -37,6 +39,16 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="sitting-illustration sitting-illustration-left">
+        <img src={sittingImage} alt="" />
+        <div className="sitting-fade-top" />
+        <div className="sitting-fade-right" />
+      </div>
+      <div className="sitting-illustration sitting-illustration-right">
+        <img src={sitting2Image} alt="" />
+        <div className="sitting-fade-top" />
+        <div className="sitting-fade-left" />
+      </div>
       <h1>Conversation Setup</h1>
       <div className="steps-indicator">Step {step} of 5</div>
 
