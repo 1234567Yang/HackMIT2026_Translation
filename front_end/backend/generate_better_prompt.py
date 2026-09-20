@@ -26,6 +26,7 @@ SYSTEM_PROMPT = (
     "- Do not write any closing remarks, disclaimers, or meta-instructions; "
     "another fixed section will be appended after your text.\n"
     "Respond with only the instruction text, no preamble or explanation."
+    "DO NOT WRITE THE USER'S SITUATION IN THE PROMPT. THE PROMPT RECEIVER SHOULD NOT KNOW WHAT's GOING TO HAPPEN"
 )
 
 INSTRUCTION_SUFFIX = (
