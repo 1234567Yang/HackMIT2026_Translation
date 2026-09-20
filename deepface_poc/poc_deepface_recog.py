@@ -30,13 +30,13 @@ class DeepFaceRecog:
         face = results[0]
 
         return {
-            "emotion": face["emotion"],
+            "emotion": {k: float(v) for k, v in face["emotion"].items()},
             "dominant_emotion": face["dominant_emotion"],
         }
 
 
 if __name__ == "__main__":
-    image_path = os.path.join(os.path.dirname(__file__), "test.jpg")
+    image_path = os.path.join(os.path.dirname(__file__), "test9.jpg")
 
     recognizer = DeepFaceRecog()
     result = recognizer.recognize(image_path)

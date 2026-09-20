@@ -15,6 +15,11 @@ SYSTEM_PROMPT = (
     "- Start with exactly \"You role is \" followed by a concrete description of "
     "who the AI is being (their role/position) and their personality, based on "
     "the information given.\n"
+    "- Use the topic ONLY to establish background/situational facts the AI "
+    "character would already know (e.g. what has happened so far). Never state, "
+    "imply, or assume what the person practicing wants, is asking for, or "
+    "expects as an outcome — that must come from them during the actual "
+    "conversation, not be written into the AI's instructions in advance.\n"
     "- Never use the words \"role-play\" or \"roleplay\" anywhere in the text you "
     "write — the AI reading these instructions should believe it truly IS "
     "that person, not that it is performing a role-play.\n"
@@ -58,7 +63,7 @@ def _voice_tags_suffix() -> str:
     tts = XaiTextToSpeech(token=token)
     tags = tts.get_inline_tags()
 
-    return "\nYou should insert inline voice tags from the following list when necessary, to simulate the tone: " + ", ".join(tags)
+    return "\nYou should insert inline voice tags (both inline and when sentence finished when necessary, can insert multiple) from the following list when necessary, to simulate the tone: " + ", ".join(tags)
 
 
 def generate_better_prompt(data: Dict[str, str]) -> str:
@@ -74,7 +79,9 @@ def generate_better_prompt(data: Dict[str, str]) -> str:
     user_input = (
         f"Who I am in this context: {data['who_context']}\n"
         f"Who I'm talking to: {data['who_talking_to']}\n"
-        f"What we'll talk about: {data['what_to_talk_about']}\n"
+        f"Background context only, NOT the person's request or desired outcome "
+        f"(they must voice that themselves during the conversation): "
+        f"{data['what_to_talk_about']}\n"
         f"Personality I want them to have: {data['personality']}\n"
         f"Example of that personality: {data['example']}\n"
     )

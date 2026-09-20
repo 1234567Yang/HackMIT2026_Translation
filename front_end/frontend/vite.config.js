@@ -10,6 +10,8 @@ export default defineConfig({
       '/generate_voice': 'http://localhost:5000',
       '/analyze_single_response': 'http://localhost:5000',
       '/analyze_whole_conversation': 'http://localhost:5000',
+      '/analyze_emotion': 'http://localhost:5000',
+      '/analyze_step_emotion': 'http://localhost:5000',
       '/ws': {
         target: 'ws://localhost:5000',
         ws: true,

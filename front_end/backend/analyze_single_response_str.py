@@ -1,6 +1,7 @@
 """纯文本分析：分析用户说话内容里的语言习惯问题。"""
 
 import string
+from typing import List
 
 # 纯语气词/感叹词，几乎不会在正常句子里合法出现，误判风险很低
 FILLER_WORDS = {"um", "umm", "uh", "uhh", "erm"}
@@ -38,7 +39,7 @@ def slur_word_detection(single_user_input: str) -> str:
 
     if hit_count > 0:
         return (
-            " You used profanity (e.g. \"fuck\", \"shit\") during the "
+            "You used profanity (e.g. \"fuck\", \"shit\") during the "
             "conversation, try to keep your language professional in this "
             "context."
         )
@@ -46,10 +47,10 @@ def slur_word_detection(single_user_input: str) -> str:
     return ""
 
 
-def analyze_user_input_from_text(single_user_input: str) -> str:
-    """对一段文字做纯文本分析，返回给用户的建议（可能是空字符串）。"""
+def analyze_user_input_from_text(single_user_input: str) -> List[str]:
+    """对一段文字做纯文本分析，返回给用户的建议列表（每条问题单独一条，可能是空列表）。"""
 
-    return_suggestion = ""
+    suggestions: List[str] = []
 
     text = single_user_input.lower()
     text = "".join(ch for ch in text if ch not in string.punctuation)
@@ -59,8 +60,8 @@ def analyze_user_input_from_text(single_user_input: str) -> str:
 
     and_count = text.count(" and")
 
-    if word_count > 0 and (and_count / word_count) > 0.05:
-        return_suggestion += (
+    if word_count > 0 and (and_count / word_count) > 0.05 and and_count > 2:
+        suggestions.append(
             "You used too much \"and\", you could practice more about what you "
             "are trying to express, and make sure that use structurized output "
             "like \"First of all\", \"then\", ..."
@@ -72,8 +73,8 @@ def analyze_user_input_from_text(single_user_input: str) -> str:
     )
 
     if word_count > 0 and (filler_count / word_count) > 0.05:
-        return_suggestion += (
-            " You used a lot of filler words/phrases (like \"um\", \"uh\", "
+        suggestions.append(
+            "You used a lot of filler words/phrases (like \"um\", \"uh\", "
             "\"you know\"), try pausing silently instead of filling the gap "
             "with these words."
         )
@@ -85,12 +86,14 @@ def analyze_user_input_from_text(single_user_input: str) -> str:
     )
 
     if stutter_count >= 2:
-        return_suggestion += (
-            " You repeated the same word back-to-back multiple times (e.g. "
+        suggestions.append(
+            "You repeated the same word back-to-back multiple times (e.g. "
             "\"I I\", \"the the\"), try to slow down a bit so you don't "
             "stumble over your words."
         )
 
-    return_suggestion += slur_word_detection(single_user_input)
+    slur_suggestion = slur_word_detection(single_user_input)
+    if slur_suggestion:
+        suggestions.append(slur_suggestion)
 
-    return return_suggestion
+    return suggestions

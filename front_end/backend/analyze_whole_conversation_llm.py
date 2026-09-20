@@ -17,8 +17,13 @@ SYSTEM_PROMPT = (
     "uncomfortable/off-putting to the other party.\n"
     "Be specific — quote or reference the exact moment in the conversation "
     "you're talking about. Do not comment on the AI's turns. Do not praise "
-    "unless it's directly relevant context for the criticism. Respond with "
-    "plain text feedback, no preamble."
+    "unless it's directly relevant context for the criticism.\n\n"
+    "Don't force an answer. If there's no real problem (or only a very "
+    "minor/borderline one not worth mentioning), respond with exactly "
+    "\"no_problem\" and nothing else.\n\n"
+    "Otherwise, respond with plain text feedback, no preamble. Be very "
+    "concise and easy to read — short sentences or a short bullet list, no "
+    "filler, straight to the point."
 )
 
 

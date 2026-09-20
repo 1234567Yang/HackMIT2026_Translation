@@ -110,6 +110,16 @@ button:disabled {
   background: #fafafa;
 }
 
+.camera-preview {
+  margin-top: 0.4rem;
+  width: 120px;
+  height: 90px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  object-fit: cover;
+  background: #000;
+}
+
 .show-conversation-toggle {
   display: flex;
   align-items: center;
@@ -137,27 +147,61 @@ button:disabled {
   border-radius: 8px;
 }
 
+.message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  max-width: 85%;
+}
+
+.message-row.user {
+  align-self: flex-end;
+}
+
+.message-row.assistant {
+  align-self: flex-start;
+}
+
+.message-row.system {
+  align-self: center;
+}
+
+.message-icons {
+  display: flex;
+  gap: 0.2rem;
+  flex-shrink: 0;
+  padding-top: 0.35rem;
+}
+
+.message-icon {
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  background: #ddd;
+  border: 1px solid #999;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  padding: 0.25rem;
+}
+
 .message {
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
-  max-width: 85%;
   font-size: 0.95rem;
+  min-width: 0;
 }
 
 .message.user {
-  align-self: flex-end;
   background: #1a1a1a;
   color: #fff;
 }
 
 .message.assistant {
-  align-self: flex-start;
   background: #eee;
   color: #1a1a1a;
 }
 
 .message.system {
-  align-self: center;
   color: #666;
   font-size: 0.85rem;
 }
@@ -165,7 +209,6 @@ button:disabled {
 .message.has-issue {
   background: #ffc0cb;
   color: #1a1a1a;
-  cursor: pointer;
 }
 
 .overall-suggestions {

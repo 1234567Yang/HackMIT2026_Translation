@@ -1,13 +1,17 @@
 import os
 from pathlib import Path
 
+import cv2
+import numpy as np
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from analyze_single_response_str import analyze_user_input_from_text
+from analyze_step_emotion_llm import analyze_step_emotion_llm
 from analyze_whole_conversation_llm import analyze_whole_conversation_llm
 from choose_voice import choose_voice
 from conversation_ws import register_conversation_ws
+from deepface_recog import DeepFaceRecog
 from generate_better_prompt import REQUIRED_FIELDS, generate_better_prompt
 from use_chatgpt import load_env
 from xai_text_to_speech import XaiTextToSpeech
@@ -17,6 +21,9 @@ FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 app = Flask(__name__, static_folder=str(FRONTEND_DIST), static_url_path="")
 CORS(app)
 register_conversation_ws(app)
+
+# 复用同一个实例，避免每次请求都重新加载 DeepFace 的模型权重
+deepface_recog = DeepFaceRecog()
 
 
 @app.route("/", defaults={"path": ""})
@@ -52,9 +59,21 @@ def analyze_single_response():
     data = request.get_json(force=True, silent=True) or {}
     text = data.get("text", "")
 
-    suggestion = analyze_user_input_from_text(text)
+    suggestions = analyze_user_input_from_text(text)
 
-    return jsonify({"suggestion": suggestion})
+    return jsonify({"suggestions": suggestions})
+
+
+@app.route("/analyze_step_emotion", methods=["POST"])
+def analyze_step_emotion():
+    data = request.get_json(force=True, silent=True) or {}
+
+    try:
+        feedback = analyze_step_emotion_llm(data)
+    except RuntimeError as error:
+        return jsonify({"error": str(error)}), 502
+
+    return jsonify({"feedback": feedback})
 
 
 @app.route("/analyze_whole_conversation", methods=["POST"])
@@ -68,6 +87,25 @@ def analyze_whole_conversation():
         return jsonify({"error": str(error)}), 502
 
     return jsonify({"feedback": feedback})
+
+
+@app.route("/analyze_emotion", methods=["POST"])
+def analyze_emotion():
+    file = request.files.get("image")
+    if not file:
+        return jsonify({"error": "Missing 'image' file"}), 400
+
+    file_bytes = np.frombuffer(file.read(), dtype=np.uint8)
+    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    if img is None:
+        return jsonify({"error": "Could not decode image"}), 400
+
+    try:
+        emotion = deepface_recog.parseEmotion(img)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 502
+
+    return jsonify({"emotion": emotion})
 
 
 @app.route("/generate_voice", methods=["POST"])

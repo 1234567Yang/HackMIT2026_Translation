@@ -5,6 +5,9 @@ function wsUrl(path) {
   return `${protocol}//${window.location.host}${path}`
 }
 
+const MAX_PHOTOS_PER_TURN = 3
+const CAPTURE_INTERVAL_MS = 8000
+
 export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
   const [interimText, setInterimText] = useState('')
   const [messages, setMessages] = useState([])
@@ -20,6 +23,12 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
   const conversationIdRef = useRef(null)
   const isSpeakingRef = useRef(false)
 
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+  const videoStreamRef = useRef(null)
+  const captureLoopRef = useRef(null)
+  const photosRef = useRef([])
+
   if (conversationIdRef.current === null) {
     conversationIdRef.current = crypto.randomUUID()
   }
@@ -31,8 +40,53 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
     audioContextRef.current = null
   }
 
+  const stopCaptureLoop = () => {
+    if (captureLoopRef.current) {
+      clearInterval(captureLoopRef.current)
+      captureLoopRef.current = null
+    }
+  }
+
+  const captureFrame = () => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas || video.readyState < 2) {
+      return null
+    }
+
+    canvas.width = video.videoWidth || 320
+    canvas.height = video.videoHeight || 240
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/jpeg', 0.7)
+  }
+
+  const captureIfRoom = () => {
+    if (photosRef.current.length >= MAX_PHOTOS_PER_TURN) {
+      stopCaptureLoop()
+      return
+    }
+
+    const frame = captureFrame()
+    if (frame) {
+      photosRef.current = [...photosRef.current, frame]
+    }
+  }
+
+  const startCaptureLoop = () => {
+    stopCaptureLoop()
+    captureIfRoom()
+    captureLoopRef.current = setInterval(captureIfRoom, CAPTURE_INTERVAL_MS)
+  }
+
+  const stopCamera = () => {
+    stopCaptureLoop()
+    videoStreamRef.current?.getTracks().forEach((track) => track.stop())
+    videoStreamRef.current = null
+  }
+
   const playAssistantVoice = async (text) => {
     isSpeakingRef.current = true
+    stopCaptureLoop()
     try {
       const response = await fetch('/generate_voice', {
         method: 'POST',
@@ -59,6 +113,7 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
     } finally {
       isSpeakingRef.current = false
       socketRef.current?.send(JSON.stringify({ type: 'resume_listening' }))
+      startCaptureLoop()
     }
   }
 
@@ -83,9 +138,12 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
         setInterimText(data.text)
       } else if (data.type === 'finalized_user') {
         setInterimText('')
+        stopCaptureLoop()
+        const images = photosRef.current
+        photosRef.current = []
         setMessages((prev) => [
           ...prev,
-          { role: 'user', text: data.text, sentiment: data.sentiment },
+          { role: 'user', text: data.text, sentiment: data.sentiment, images },
         ])
       } else if (data.type === 'assistant') {
         setMessages((prev) => [...prev, { role: 'assistant', text: data.text }])
@@ -94,6 +152,7 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
         endedRef.current = true
         setStatus('ended')
         stopMicrophone()
+        stopCamera()
         setMessages((prev) => [
           ...prev,
           { role: 'system', text: `Conversation ended: ${data.reason}` },
@@ -125,6 +184,28 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
     audioContextRef.current = audioContext
 
     connectSocket()
+
+    ;(async () => {
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true })
+
+        if (cancelled) {
+          videoStream.getTracks().forEach((track) => track.stop())
+          return
+        }
+
+        videoStreamRef.current = videoStream
+        if (videoRef.current) {
+          videoRef.current.srcObject = videoStream
+          videoRef.current.onloadedmetadata = () => startCaptureLoop()
+        }
+      } catch (err) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'system', text: `Camera error: ${err.message}` },
+        ])
+      }
+    })()
 
     ;(async () => {
       try {
@@ -161,6 +242,7 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
       socketRef.current?.close()
       workletNode?.disconnect()
       stopMicrophone()
+      stopCamera()
     }
   }, [systemPrompt])
 
@@ -175,6 +257,7 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
     socketRef.current?.send(JSON.stringify({ type: 'end', confirm_end: true }))
     socketRef.current?.close()
     stopMicrophone()
+    stopCamera()
     setStatus('ended')
   }
 
@@ -204,6 +287,15 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
           {interimText || (status === 'ended' ? '' : 'Listening...')}
         </div>
       </label>
+
+      <video
+        ref={videoRef}
+        className="camera-preview"
+        autoPlay
+        muted
+        playsInline
+      />
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       {showConversation && (
         <div className="messages" ref={historyRef}>
