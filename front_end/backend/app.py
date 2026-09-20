@@ -1,14 +1,21 @@
+import os
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-from llm import REQUIRED_FIELDS, generate_better_prompt
+from analyze_single_response_str import analyze_user_input_from_text
+from choose_voice import choose_voice
+from conversation_ws import register_conversation_ws
+from generate_better_prompt import REQUIRED_FIELDS, generate_better_prompt
+from use_chatgpt import load_env
+from xai_text_to_speech import XaiTextToSpeech
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 app = Flask(__name__, static_folder=str(FRONTEND_DIST), static_url_path="")
 CORS(app)
+register_conversation_ws(app)
 
 
 @app.route("/", defaults={"path": ""})
@@ -37,6 +44,55 @@ def review():
         return jsonify({"error": str(error)}), 502
 
     return jsonify({"improved_prompt": improved_prompt})
+
+
+@app.route("/analyze_single_response", methods=["POST"])
+def analyze_single_response():
+    data = request.get_json(force=True, silent=True) or {}
+    text = data.get("text", "")
+
+    suggestion = analyze_user_input_from_text(text)
+
+    return jsonify({"suggestion": suggestion})
+
+
+@app.route("/generate_voice", methods=["POST"])
+def generate_voice():
+    data = request.get_json(force=True, silent=True) or {}
+    text = data.get("text", "")
+    voice_id = data.get("voice_id") or "eve"
+
+    load_env()
+    token = os.getenv("XAI_API_KEY")
+    if not token:
+        return jsonify({"error": "XAI_API_KEY is not set. Add it to your .env file."}), 502
+
+    tts = XaiTextToSpeech(token=token, voice_id=voice_id)
+    try:
+        audio = tts.speak(text)
+    except (ValueError, RuntimeError) as error:
+        return jsonify({"error": str(error)}), 502
+
+    return Response(audio, mimetype="audio/mpeg")
+
+
+@app.route("/getbestvoice", methods=["POST"])
+def getbestvoice():
+    data = request.get_json(force=True, silent=True) or {}
+    prompt = data.get("prompt", "")
+
+    load_env()
+    token = os.getenv("XAI_API_KEY")
+    if not token:
+        return jsonify({"error": "XAI_API_KEY is not set. Add it to your .env file."}), 502
+
+    tts = XaiTextToSpeech(token=token)
+    try:
+        voice_id = choose_voice(tts, prompt)
+    except (ValueError, RuntimeError) as error:
+        return jsonify({"error": str(error)}), 502
+
+    return jsonify({"voice_id": voice_id})
 
 
 if __name__ == "__main__":

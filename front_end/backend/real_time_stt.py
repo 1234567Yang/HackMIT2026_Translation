@@ -5,6 +5,7 @@
 - MicrophoneSTTBase: 通用基类，实现打开/关闭麦克风等与具体STT服务商无关的通用逻辑。
 """
 
+import queue
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -70,3 +71,23 @@ class MicrophoneSTTBase(RealTimeSTT):
     @property
     def is_open(self) -> bool:
         return self._stream is not None
+
+
+class RemoteAudioSTTBase(RealTimeSTT):
+    """通用基类：音频由外部持续推入（比如浏览器通过 WebSocket 发来的二进制帧），
+    而不是从本地麦克风采集。子类只需要实现转录/情感分析逻辑。"""
+
+    def __init__(self):
+        self._audio_queue: "queue.Queue[Optional[bytes]]" = queue.Queue()
+
+    def feed_audio(self, chunk: bytes) -> None:
+        """外部收到一段音频数据时调用。"""
+        self._audio_queue.put(chunk)
+
+    def end_audio(self) -> None:
+        """外部通知音频流结束时调用（比如浏览器断开了连接）。"""
+        self._audio_queue.put(None)
+
+    def read_chunk(self) -> Optional[bytes]:
+        """阻塞读取下一段音频；返回 None 表示流已经结束。"""
+        return self._audio_queue.get()

@@ -11,6 +11,12 @@
 注意：Deepgram 目前不支持对实时音频流直接做情感分析（Audio Intelligence 功能
 仅支持预录制/批处理请求）。因此这里的 get_sentiment() 是对累计的、已确定
 （is_final）的转录文字调用 Deepgram 的 Text Intelligence（/v1/read）接口来完成的。
+
+提供两个具体类，共用 _DeepgramSTTBase 里和 Deepgram 连接/转录/情感分析相关的
+逻辑，只在音频来源上不同：
+- DeepgramSTT：本机麦克风（CLI/practice_console.py 用）。
+- DeepgramRemoteSTT：音频由外部通过 feed_audio() 推入（Web 后端用，见
+  conversation_ws.py，音频实际来自浏览器）。
 """
 
 import os
@@ -23,7 +29,7 @@ from deepgram import DeepgramClient
 from deepgram.core.events import EventType
 from deepgram.listen.v1.types import ListenV1Results
 
-from real_time_stt import MicrophoneSTTBase
+from real_time_stt import MicrophoneSTTBase, RealTimeSTT, RemoteAudioSTTBase
 
 _KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "key.txt")
 
@@ -45,8 +51,12 @@ def _load_api_key() -> str:
     )
 
 
-class DeepgramSTT(MicrophoneSTTBase):
-    """使用 Deepgram Listen V1 做实时麦克风转录，并对已转录文字做情感分析。"""
+class _DeepgramSTTBase(RealTimeSTT):
+    """Deepgram Listen V1 转录 + 情感分析的公共逻辑，不关心音频从哪来。
+
+    子类通过 read_chunk() 提供音频（阻塞读取，返回 None 表示流结束），并实现
+    _open()/_close() 做各自音频源的准备/清理。
+    """
 
     def __init__(
         self,
@@ -55,17 +65,11 @@ class DeepgramSTT(MicrophoneSTTBase):
         language: str = "en-US",
         rate: int = 16000,
         channels: int = 1,
-        chunk: int = 8192,
-        input_device_index: Optional[int] = None,
     ):
-        super().__init__(
-            rate=rate,
-            channels=channels,
-            chunk=chunk,
-            input_device_index=input_device_index,
-        )
         self.model = model
         self.language = language
+        self.rate = rate
+        self.channels = channels
 
         self._client = DeepgramClient(api_key=api_key or _load_api_key())
         self._connection_ctx = None
@@ -78,6 +82,15 @@ class DeepgramSTT(MicrophoneSTTBase):
         self._stop_event = threading.Event()
         self._listener_thread: Optional[threading.Thread] = None
         self._sender_thread: Optional[threading.Thread] = None
+
+    def _open(self) -> None:
+        raise NotImplementedError
+
+    def _close(self) -> None:
+        raise NotImplementedError
+
+    def read_chunk(self) -> Optional[bytes]:
+        raise NotImplementedError
 
     def _on_message(self, message: object) -> None:
         if not isinstance(message, ListenV1Results):
@@ -100,6 +113,8 @@ class DeepgramSTT(MicrophoneSTTBase):
                 chunk = self.read_chunk()
             except Exception:
                 break
+            if chunk is None:
+                break
             if chunk:
                 try:
                     self._connection.send_media(chunk)
@@ -107,8 +122,8 @@ class DeepgramSTT(MicrophoneSTTBase):
                     break
 
     def start(self) -> None:
-        """打开麦克风并建立与 Deepgram 的实时转录连接。"""
-        self.open_microphone()
+        """准备音频源并建立与 Deepgram 的实时转录连接。"""
+        self._open()
 
         self._connection_ctx = self._client.listen.v1.connect(
             model=self.model,
@@ -132,8 +147,14 @@ class DeepgramSTT(MicrophoneSTTBase):
         self._sender_thread.start()
 
     def stop(self) -> None:
-        """停止发送音频、关闭连接并释放麦克风。"""
+        """停止发送音频、关闭连接并释放音频源。"""
         self._stop_event.set()
+        # 先关音频源：本机麦克风会让阻塞中的 read_chunk() 抛异常从而退出；
+        # 远程队列则靠 _close() 里的 end_audio() 塞入 None 唤醒 read_chunk()。
+        # 顺序很重要——如果先 join 再关，remote 场景下每一轮都要白等 join 的
+        # 超时时间，因为唤醒 read_chunk() 的动作还没发生。
+        self._close()
+
         if self._sender_thread is not None:
             self._sender_thread.join(timeout=2)
 
@@ -149,8 +170,6 @@ class DeepgramSTT(MicrophoneSTTBase):
             self._connection_ctx.__exit__(None, None, None)
             self._connection_ctx = None
             self._connection = None
-
-        self.close_microphone()
 
     def get_text(self) -> str:
         """获取目前为止的转录文字（已确定部分 + 正在识别中的临时部分）。"""
@@ -179,3 +198,63 @@ class DeepgramSTT(MicrophoneSTTBase):
         if sentiments is None or sentiments.average is None:
             return None
         return sentiments.average.sentiment
+
+
+class DeepgramSTT(MicrophoneSTTBase, _DeepgramSTTBase):
+    """使用本机麦克风做实时转录（CLI / practice_console.py 用）。"""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "nova-3",
+        language: str = "en-US",
+        rate: int = 16000,
+        channels: int = 1,
+        chunk: int = 8192,
+        input_device_index: Optional[int] = None,
+    ):
+        MicrophoneSTTBase.__init__(
+            self,
+            rate=rate,
+            channels=channels,
+            chunk=chunk,
+            input_device_index=input_device_index,
+        )
+        _DeepgramSTTBase.__init__(
+            self, api_key=api_key, model=model, language=language, rate=rate, channels=channels
+        )
+
+    def _open(self) -> None:
+        self.open_microphone()
+
+    def _close(self) -> None:
+        self.close_microphone()
+
+    # read_chunk() 由 MicrophoneSTTBase 提供
+
+
+class DeepgramRemoteSTT(RemoteAudioSTTBase, _DeepgramSTTBase):
+    """音频由外部（比如浏览器通过 WebSocket 发来的二进制帧）推入，见
+    conversation_ws.py 里的 feed_audio() 调用。
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "nova-3",
+        language: str = "en-US",
+        rate: int = 16000,
+        channels: int = 1,
+    ):
+        RemoteAudioSTTBase.__init__(self)
+        _DeepgramSTTBase.__init__(
+            self, api_key=api_key, model=model, language=language, rate=rate, channels=channels
+        )
+
+    def _open(self) -> None:
+        pass  # 队列不需要预先打开
+
+    def _close(self) -> None:
+        self.end_audio()
+
+    # read_chunk()/feed_audio()/end_audio() 由 RemoteAudioSTTBase 提供

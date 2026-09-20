@@ -1,34 +1,50 @@
 import { useState } from 'react'
 
-export default function Step3({ answers, onBack, onRestart }) {
+export default function Step3({ answers, onBack, onRestart, onStartConversation }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState('')
   const [error, setError] = useState('')
+  const [hasGenerated, setHasGenerated] = useState(false)
+  const [voiceId, setVoiceId] = useState('')
 
   const runReview = async () => {
+    setHasGenerated(true)
     setLoading(true)
     setError('')
     setResult('')
+    setVoiceId('')
 
-    try {
-      const response = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(answers),
+    const voicePrompt = `Personality: ${answers.personality}\nExample: ${answers.example}`
+
+    const reviewPromise = fetch('/api/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(answers),
+    })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error || 'Review failed')
+        }
+        setResult(data.improved_prompt)
       })
+      .catch((err) => setError(err.message))
 
-      const data = await response.json()
+    const voicePromise = fetch('/getbestvoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: voicePrompt }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.voice_id) {
+          setVoiceId(data.voice_id)
+        }
+      })
+      .catch(() => {}) // best-effort; /generate_voice falls back to a default voice
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Review failed')
-      }
-
-      setResult(data.improved_prompt)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+    await Promise.allSettled([reviewPromise, voicePromise])
+    setLoading(false)
   }
 
   return (
@@ -57,7 +73,7 @@ export default function Step3({ answers, onBack, onRestart }) {
         <button onClick={onBack} disabled={loading}>
           Back
         </button>
-        <button onClick={runReview} disabled={loading}>
+        <button onClick={runReview} disabled={loading || hasGenerated}>
           {loading ? 'Generating...' : 'Generate Better Instruction'}
         </button>
       </div>
@@ -67,7 +83,15 @@ export default function Step3({ answers, onBack, onRestart }) {
       {result && (
         <div className="result">
           <h3>Improved instruction</h3>
-          <p>{result}</p>
+          {voiceId && <span className="voice-tag">Voice: {voiceId}</span>}
+          <textarea
+            rows={8}
+            value={result}
+            onChange={(e) => setResult(e.target.value)}
+          />
+          <button onClick={() => onStartConversation(result, voiceId)}>
+            Start Conversation
+          </button>
           <button onClick={onRestart}>Start Over</button>
         </div>
       )}
