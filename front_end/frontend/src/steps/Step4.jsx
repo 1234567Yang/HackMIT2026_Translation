@@ -9,6 +9,7 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
   const [interimText, setInterimText] = useState('')
   const [messages, setMessages] = useState([])
   const [status, setStatus] = useState('connecting')
+  const [showConversation, setShowConversation] = useState(false)
 
   const socketRef = useRef(null)
   const endedRef = useRef(false)
@@ -204,13 +205,25 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
         </div>
       </label>
 
-      <div className="messages" ref={historyRef}>
-        {messages.map((message, index) => (
-          <div key={index} className={`message ${message.role}`}>
-            {message.text}
-          </div>
-        ))}
-      </div>
+      {showConversation && (
+        <div className="messages" ref={historyRef}>
+          {messages.map((message, index) => (
+            <div key={index} className={`message ${message.role}`}>
+              {message.text}
+              {message.sentiment ? ` [${message.sentiment}]` : ''}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <label className="show-conversation-toggle">
+        <input
+          type="checkbox"
+          checked={showConversation}
+          onChange={(e) => setShowConversation(e.target.checked)}
+        />
+        Show conversation
+      </label>
 
       <div className="actions">
         <span />

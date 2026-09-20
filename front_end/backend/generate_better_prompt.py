@@ -58,7 +58,7 @@ def _voice_tags_suffix() -> str:
     tts = XaiTextToSpeech(token=token)
     tags = tts.get_inline_tags()
 
-    return "\nYou can insert inline voice tags from the following list: " + ", ".join(tags)
+    return "\nYou should insert inline voice tags from the following list when necessary, to simulate the tone: " + ", ".join(tags)
 
 
 def generate_better_prompt(data: Dict[str, str]) -> str:

@@ -3,33 +3,35 @@ import { useEffect, useState } from 'react'
 export default function Step5({ messages, onRestart }) {
   const [suggestions, setSuggestions] = useState({})
   const [overallSuggestion, setOverallSuggestion] = useState('')
+  const [isAnalyzing, setIsAnalyzing] = useState(true)
 
   useEffect(() => {
-    messages.forEach((message, index) => {
-      if (message.role !== 'user') {
-        return
-      }
+    setIsAnalyzing(true)
 
-      fetch('/analyze_single_response', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message.text }),
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          if (data.suggestion) {
-            setSuggestions((prev) => ({ ...prev, [index]: data.suggestion }))
-          }
+    const singleResponseRequests = messages
+      .map((message, index) => ({ message, index }))
+      .filter(({ message }) => message.role === 'user')
+      .map(({ message, index }) =>
+        fetch('/analyze_single_response', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: message.text }),
         })
-        .catch(() => {})
-    })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.suggestion) {
+              setSuggestions((prev) => ({ ...prev, [index]: data.suggestion }))
+            }
+          })
+          .catch(() => {})
+      )
 
     const conversationText = messages
       .filter((message) => message.role === 'user' || message.role === 'assistant')
       .map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.text}`)
       .join('\n')
 
-    fetch('/analyze_whole_conversation', {
+    const overallRequest = fetch('/analyze_whole_conversation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversation: conversationText }),
@@ -37,11 +39,15 @@ export default function Step5({ messages, onRestart }) {
       .then((response) => response.json())
       .then((data) => setOverallSuggestion(data.feedback || ''))
       .catch(() => {})
+
+    Promise.all([...singleResponseRequests, overallRequest]).then(() => setIsAnalyzing(false))
   }, [messages])
 
   return (
     <div className="step">
       <h2>Step 5: Evaluate</h2>
+
+      {isAnalyzing && <div className="analyzing-label">Analyzing...</div>}
 
       <div className="messages">
         {messages.map((message, index) => {
