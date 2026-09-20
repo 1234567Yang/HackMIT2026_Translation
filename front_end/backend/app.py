@@ -5,6 +5,7 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from analyze_single_response_str import analyze_user_input_from_text
+from analyze_whole_conversation_llm import analyze_whole_conversation_llm
 from choose_voice import choose_voice
 from conversation_ws import register_conversation_ws
 from generate_better_prompt import REQUIRED_FIELDS, generate_better_prompt
@@ -56,6 +57,19 @@ def analyze_single_response():
     return jsonify({"suggestion": suggestion})
 
 
+@app.route("/analyze_whole_conversation", methods=["POST"])
+def analyze_whole_conversation():
+    data = request.get_json(force=True, silent=True) or {}
+    conversation_text = data.get("conversation", "")
+
+    try:
+        feedback = analyze_whole_conversation_llm(conversation_text)
+    except RuntimeError as error:
+        return jsonify({"error": str(error)}), 502
+
+    return jsonify({"feedback": feedback})
+
+
 @app.route("/generate_voice", methods=["POST"])
 def generate_voice():
     data = request.get_json(force=True, silent=True) or {}
@@ -96,4 +110,4 @@ def getbestvoice():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, threaded=True)

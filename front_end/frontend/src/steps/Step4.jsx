@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
-const RECONNECT_INTERVAL_MS = 2000
-
 function wsUrl(path) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.host}${path}`
 }
 
-export default function Step4({ systemPrompt, voiceId }) {
+export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
   const [interimText, setInterimText] = useState('')
   const [messages, setMessages] = useState([])
   const [status, setStatus] = useState('connecting')
@@ -18,8 +16,6 @@ export default function Step4({ systemPrompt, voiceId }) {
   const historyRef = useRef(null)
   const mediaStreamRef = useRef(null)
   const audioContextRef = useRef(null)
-  const reconnectTimerRef = useRef(null)
-  const hasShownDisconnectNoticeRef = useRef(false)
   const conversationIdRef = useRef(null)
   const isSpeakingRef = useRef(false)
 
@@ -71,7 +67,6 @@ export default function Step4({ systemPrompt, voiceId }) {
 
     socket.onopen = () => {
       setStatus('open')
-      hasShownDisconnectNoticeRef.current = false
       socket.send(JSON.stringify({
         type: 'start',
         system_prompt: systemPrompt,
@@ -113,15 +108,10 @@ export default function Step4({ systemPrompt, voiceId }) {
       }
 
       setStatus('disconnected')
-      if (!hasShownDisconnectNoticeRef.current) {
-        hasShownDisconnectNoticeRef.current = true
-        setMessages((prev) => [
-          ...prev,
-          { role: 'system', text: 'Connection lost, retrying...' },
-        ])
-      }
-
-      reconnectTimerRef.current = setTimeout(connectSocket, RECONNECT_INTERVAL_MS)
+      setMessages((prev) => [
+        ...prev,
+        { role: 'system', text: 'Connection lost.' },
+      ])
     }
   }
 
@@ -167,7 +157,6 @@ export default function Step4({ systemPrompt, voiceId }) {
     return () => {
       unmountedRef.current = true
       cancelled = true
-      clearTimeout(reconnectTimerRef.current)
       socketRef.current?.close()
       workletNode?.disconnect()
       stopMicrophone()
@@ -182,7 +171,6 @@ export default function Step4({ systemPrompt, voiceId }) {
 
   const endConversation = () => {
     endedRef.current = true
-    clearTimeout(reconnectTimerRef.current)
     socketRef.current?.send(JSON.stringify({ type: 'end', confirm_end: true }))
     socketRef.current?.close()
     stopMicrophone()
@@ -202,7 +190,7 @@ export default function Step4({ systemPrompt, voiceId }) {
   }
 
   const evaluateConversation = () => {
-    // TODO: implement conversation evaluation
+    onEvaluate(messages)
   }
 
   return (

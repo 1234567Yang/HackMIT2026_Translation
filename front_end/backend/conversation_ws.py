@@ -35,6 +35,7 @@ hackathon 规模下够用。
 import json
 import os
 import threading
+import traceback
 import uuid
 
 from flask_sock import Sock
@@ -199,6 +200,8 @@ def register_conversation_ws(app) -> None:
                 wait_for_resume=wait_for_resume,
             )
         except Exception as error:
+            # 之前这里只把错误发给前端，终端什么都看不到——加个 traceback 方便调试。
+            traceback.print_exc()
             try:
                 ws.send(json.dumps({"type": "error", "message": str(error)}))
             except Exception:

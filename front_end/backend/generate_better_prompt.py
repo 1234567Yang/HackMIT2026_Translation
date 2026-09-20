@@ -2,6 +2,7 @@ import os
 from typing import Dict
 
 from use_chatgpt import UseChatGPT, load_env
+from xai_text_to_speech import XaiTextToSpeech
 
 SYSTEM_PROMPT = (
     "You help someone prepare for a practice conversation with an AI. "
@@ -45,6 +46,21 @@ REQUIRED_FIELDS = [
 ]
 
 
+def _voice_tags_suffix() -> str:
+    """列出 TTS 支持的 inline voice tag，拼到生成的 instruction 最后。
+
+    XAI_API_KEY 缺失时就跳过这一段，不影响 instruction 本身的生成。
+    """
+    token = os.getenv("XAI_API_KEY")
+    if not token:
+        return ""
+
+    tts = XaiTextToSpeech(token=token)
+    tags = tts.get_inline_tags()
+
+    return "\nYou can insert inline voice tags from the following list: " + ", ".join(tags)
+
+
 def generate_better_prompt(data: Dict[str, str]) -> str:
     load_env()
 
@@ -69,4 +85,4 @@ def generate_better_prompt(data: Dict[str, str]) -> str:
         system_prompt=SYSTEM_PROMPT,
     )
 
-    return chatgpt.ask_chatgpt(user_input) + INSTRUCTION_SUFFIX
+    return chatgpt.ask_chatgpt(user_input) + INSTRUCTION_SUFFIX + _voice_tags_suffix()

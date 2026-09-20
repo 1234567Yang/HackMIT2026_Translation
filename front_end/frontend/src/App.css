@@ -147,8 +147,22 @@ button:disabled {
   font-size: 0.85rem;
 }
 
+.message.has-issue {
+  background: #ffc0cb;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.overall-suggestions {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
 .voice-tag {
-  display: inline-block;
+  display: block;
+  width: fit-content;
+  margin-top: 0.6rem;
   margin-bottom: 0.6rem;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;

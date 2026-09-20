@@ -14,37 +14,38 @@ export default function Step3({ answers, onBack, onRestart, onStartConversation 
     setResult('')
     setVoiceId('')
 
-    const voicePrompt = `Personality: ${answers.personality}\nExample: ${answers.example}`
-
-    const reviewPromise = fetch('/api/review', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(answers),
-    })
-      .then(async (response) => {
-        const data = await response.json()
-        if (!response.ok) {
-          throw new Error(data.error || 'Review failed')
-        }
-        setResult(data.improved_prompt)
+    try {
+      const response = await fetch('/api/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(answers),
       })
-      .catch((err) => setError(err.message))
 
-    const voicePromise = fetch('/getbestvoice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: voicePrompt }),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.voice_id) {
-          setVoiceId(data.voice_id)
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Review failed')
+      }
+
+      setResult(data.improved_prompt)
+
+      try {
+        const voiceResponse = await fetch('/getbestvoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: data.improved_prompt }),
+        })
+        const voiceData = await voiceResponse.json()
+        if (voiceData.voice_id) {
+          setVoiceId(voiceData.voice_id)
         }
-      })
-      .catch(() => {}) // best-effort; /generate_voice falls back to a default voice
-
-    await Promise.allSettled([reviewPromise, voicePromise])
-    setLoading(false)
+      } catch {
+        // best-effort; /generate_voice falls back to a default voice
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -83,12 +84,12 @@ export default function Step3({ answers, onBack, onRestart, onStartConversation 
       {result && (
         <div className="result">
           <h3>Improved instruction</h3>
-          {voiceId && <span className="voice-tag">Voice: {voiceId}</span>}
           <textarea
             rows={8}
             value={result}
             onChange={(e) => setResult(e.target.value)}
           />
+          {voiceId && <span className="voice-tag">Voice: {voiceId}</span>}
           <button onClick={() => onStartConversation(result, voiceId)}>
             Start Conversation
           </button>
