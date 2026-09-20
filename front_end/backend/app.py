@@ -128,6 +128,11 @@ def generate_voice():
     return Response(audio, mimetype="audio/mpeg")
 
 
+@app.route("/get_all_voice_sound", methods=["GET"])
+def get_all_voice_sound():
+    return jsonify({"voices": XaiTextToSpeech.voices})
+
+
 @app.route("/getbestvoice", methods=["POST"])
 def getbestvoice():
     data = request.get_json(force=True, silent=True) or {}

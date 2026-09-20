@@ -164,12 +164,22 @@ button:disabled {
 
 .camera-preview {
   margin-top: 0.4rem;
-  width: 120px;
-  height: 90px;
+  width: 240px;
+  height: 180px;
   border-radius: 8px;
   border: 1px solid #d8dfdc;
   object-fit: cover;
   background: #000;
+}
+
+.voice-portrait {
+  display: block;
+  margin-top: 0.5rem;
+  width: 240px;
+  height: 180px;
+  border-radius: 8px;
+  border: 1px solid #d8dfdc;
+  object-fit: cover;
 }
 
 .show-conversation-toggle {

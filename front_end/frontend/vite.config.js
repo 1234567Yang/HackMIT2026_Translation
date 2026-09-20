@@ -7,6 +7,7 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:5000',
       '/getbestvoice': 'http://localhost:5000',
+      '/get_all_voice_sound': 'http://localhost:5000',
       '/generate_voice': 'http://localhost:5000',
       '/analyze_single_response': 'http://localhost:5000',
       '/analyze_whole_conversation': 'http://localhost:5000',

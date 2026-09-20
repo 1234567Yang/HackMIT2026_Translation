@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import manImage from '../assets/man.jpg'
+import womanImage from '../assets/woman.jpg'
 
 function wsUrl(path) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -14,6 +16,7 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
   const [status, setStatus] = useState('connecting')
   const [showConversation, setShowConversation] = useState(false)
   const [isWaitingForAssistant, setIsWaitingForAssistant] = useState(false)
+  const [voiceGender, setVoiceGender] = useState(null)
 
   const socketRef = useRef(null)
   const endedRef = useRef(false)
@@ -267,6 +270,16 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
     }
   }, [messages, interimText])
 
+  useEffect(() => {
+    fetch('/get_all_voice_sound')
+      .then((response) => response.json())
+      .then((data) => {
+        const voice = (data.voices || []).find((v) => v.voice_id === voiceId)
+        setVoiceGender(voice?.type === 'male' ? 'male' : 'female')
+      })
+      .catch(() => {})
+  }, [voiceId])
+
   const endConversation = () => {
     endedRef.current = true
     socketRef.current?.send(JSON.stringify({ type: 'end', confirm_end: true }))
@@ -312,6 +325,14 @@ export default function Step4({ systemPrompt, voiceId, onEvaluate }) {
         playsInline
       />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      {voiceGender && (
+        <img
+          src={voiceGender === 'male' ? manImage : womanImage}
+          alt=""
+          className="voice-portrait"
+        />
+      )}
 
       {showConversation && (
         <div className="messages" ref={historyRef}>
